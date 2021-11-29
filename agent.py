@@ -1,6 +1,8 @@
 import torch
 import random
 import numpy as np
+import os
+import pickle
 from collections import deque
 from snake_game import SnakeGameAI, Direction, Point
 from model import Linear_QNet, QTrainer
@@ -13,13 +15,27 @@ LR = 0.001
 
 class Agent:
 
-    def __init__(self):
+    def __init__(self, model='', variables=''):
         self.n_games = 0
         self.epsilon = 0  # randomness
         self.gamma = 0.9  # discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
         self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+        self.record = 0
+
+        if os.path.exists(model):
+            self.model.load_state_dict(torch.load(model))
+
+        if os.path.exists(variables):
+            # Getting back the objects:
+            if variables.endswith('.pkl') and os.path.exists(variables):
+                try:
+                    with open(variables, 'rb') as f:  # Python 3: open(..., 'rb')
+                        self.n_games, self.epsilon, self.record = pickle.load(f)
+                except:
+                    pass
+        print(self.n_games, self.epsilon, self.record)
 
     def get_state(self, game):
         head = game.snake[0]
@@ -99,14 +115,21 @@ class Agent:
 
         return final_move
 
+    def save_variables(self):
+        # Saving the objects:
+        path = os.getcwd()
+        path = os.path.join(path, 'model', 'variables.pkl')
+        with open(path, 'wb') as f:
+            pickle.dump([self.n_games, self.epsilon, self.record], f)
 
-def train():
+
+def train(checkpont='', variables=''):
     plot_scores = []
     plot_mean_scores = []
-    total_score = 0
-    record = 0
-    agent = Agent()
+    agent = Agent(checkpont, variables)
     game = SnakeGameAI()
+    total_score = 0
+
     while True:
         # get old state
         state_old = agent.get_state(game)
@@ -130,11 +153,12 @@ def train():
             agent.n_games += 1
             agent.train_long_memory()
 
-            if score > record:
-                record = score
+            if score > agent.record:
+                agent.record = score
                 agent.model.save()
+                agent.save_variables()
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
+            print('Game', agent.n_games, 'Score', score, 'Record:', agent.record)
 
             plot_scores.append(score)
             total_score += score
@@ -144,4 +168,5 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
+    train(r'C:\Users\alex.sousa\Documents\Dev\pessoal_alex\Snake_IA\model\model.pth',
+          r'C:\Users\alex.sousa\Documents\Dev\pessoal_alex\Snake_IA\model\variables.pkl')
